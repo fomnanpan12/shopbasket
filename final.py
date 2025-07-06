@@ -24,6 +24,13 @@ def generate_rules(transactions):
     rules = association_rules(frequent_itemsets, metric="lift", min_threshold=1.0)
     return rules
 
+def get_items_with_recommendations(rules):
+    """Return only items that have at least one recommendation"""
+    items_with_rules = set()
+    for _, rule in rules.iterrows():
+        items_with_rules.update(rule['antecedents'])
+    return sorted(items_with_rules)
+
 def recommend_items(rules, current_items, top_n=3):
     """Generate recommendations based on association rules"""
     matched_rules = rules[
@@ -38,20 +45,21 @@ def recommend_items(rules, current_items, top_n=3):
     return list(recommendations)
 
 def main():
-    st.title("🛒 Grocery Recommendation System")
+    st.title("🛒 Smart Grocery Recommender")
     
     # Load and process data
-    with st.spinner('Loading data and generating recommendations...'):
+    with st.spinner('Analyzing purchase patterns...'):
         df = load_data()
         transactions = prepare_transactions(df)
         rules = generate_rules(transactions['Items'].tolist())
+        recommended_items = get_items_with_recommendations(rules)
     
     # Sidebar controls
     st.sidebar.header("Recommendation Settings")
     selected_items = st.sidebar.multiselect(
-        "Select items in cart:",
-        options=sorted(df['itemDescription'].unique()),
-        default=['soda']
+        "Select items in your cart:",
+        options=recommended_items,  # Only show items that have recommendations
+        default=['whole milk'] if 'whole milk' in recommended_items else None
     )
     top_n = st.sidebar.slider("Number of recommendations:", 1, 10, 3)
     
@@ -59,14 +67,15 @@ def main():
     if selected_items:
         recommendations = recommend_items(rules, selected_items, top_n)
         if recommendations:
-            st.success("Recommended items to add to your cart:")
+            st.success("Recommended additions to your cart:")
             for i, item in enumerate(recommendations, 1):
                 st.write(f"{i}. {item}")
         else:
-            st.warning("No recommendations found for selected items.")
+            st.warning("No recommendations found for these items.")
     else:
-        st.info("Please select items from the sidebar to get recommendations.")
-    
+        st.info("Select items from your cart to get recommendations")
+        st.write(f"{len(recommended_items)} items available with known purchase patterns")
+
     # Show raw rules if needed
     if st.checkbox("Show association rules data"):
         st.dataframe(rules.sort_values('confidence', ascending=False))
